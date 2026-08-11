@@ -1,57 +1,45 @@
-import sqlite3 from 'sqlite3';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import fs from 'fs';
+import { createClient } from '@libsql/client';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Em produção (Vercel) usamos o Turso via TURSO_DATABASE_URL (libsql://...).
+// Em desenvolvimento, sem nenhuma variável definida, caímos no arquivo local
+// sinergia.db — resolvido a partir do diretório onde o processo foi iniciado
+// (a raiz do projeto, que é de onde os scripts do package.json rodam).
+const databaseUrl = process.env.TURSO_DATABASE_URL?.trim() || 'file:sinergia.db';
+const authToken = process.env.TURSO_AUTH_TOKEN?.trim() || undefined;
 
-const dbPath = path.resolve(__dirname, '../../sinergia.db');
-
-// Enable verbose logging for development if needed
-const sqlite = sqlite3.verbose();
-
-export const db = new sqlite.Database(dbPath, (err) => {
-  if (err) {
-    console.error('❌ Erro ao conectar ao SQLite:', err.message);
-  } else {
-    console.log('⚡ Conectado ao banco de dados SQLite SinergIA:', dbPath);
-  }
+export const db = createClient({
+  url: databaseUrl,
+  authToken,
+  // Devolve INTEGER do SQLite como Number, evitando BigInt no JSON.stringify das rotas
+  intMode: 'number'
 });
 
-// Utility functions to wrap sqlite3 with Promises for async/await usage
-export const runQuery = (sql, params = []) => {
-  return new Promise((resolve, reject) => {
-    db.run(sql, params, function (err) {
-      if (err) reject(err);
-      else resolve({ id: this.lastID, changes: this.changes });
-    });
-  });
+// libSQL devolve objetos Row com propriedades não-enumeráveis por índice.
+// Normalizamos para objetos simples antes de entregar às rotas.
+const toPlainObject = (row) => (row ? { ...row } : row);
+
+// Utility functions to wrap libSQL with Promises for async/await usage
+export const runQuery = async (sql, params = []) => {
+  const result = await db.execute({ sql, args: params });
+  return {
+    id: result.lastInsertRowid != null ? Number(result.lastInsertRowid) : undefined,
+    changes: result.rowsAffected
+  };
 };
 
-export const getQuery = (sql, params = []) => {
-  return new Promise((resolve, reject) => {
-    db.get(sql, params, (err, row) => {
-      if (err) reject(err);
-      else resolve(row);
-    });
-  });
+export const getQuery = async (sql, params = []) => {
+  const result = await db.execute({ sql, args: params });
+  return toPlainObject(result.rows[0]);
 };
 
-export const allQuery = (sql, params = []) => {
-  return new Promise((resolve, reject) => {
-    db.all(sql, params, (err, rows) => {
-      if (err) reject(err);
-      else resolve(rows);
-    });
-  });
+export const allQuery = async (sql, params = []) => {
+  const result = await db.execute({ sql, args: params });
+  return result.rows.map(toPlainObject);
 };
 
 // Initialize Database Schemas
 export const initSchema = async () => {
   const schemaSQL = `
-    PRAGMA foreign_keys = ON;
-
     CREATE TABLE IF NOT EXISTS escolas (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       nome TEXT NOT NULL,
@@ -175,15 +163,27 @@ export const initSchema = async () => {
     );
   `;
 
-  return new Promise((resolve, reject) => {
-    db.exec(schemaSQL, (err) => {
-      if (err) {
-        console.error('❌ Erro ao criar schema do banco:', err.message);
-        reject(err);
-      } else {
-        console.log('✅ Schema do SQLite SinergIA verificado/inicializado com sucesso.');
-        resolve(true);
-      }
+  try {
+    // PRAGMA é por conexão e o Turso remoto pode recusá-la — não é fatal.
+    await db.execute('PRAGMA foreign_keys = ON;');
+  } catch {
+    // segue o jogo: o Turso já aplica integridade referencial por padrão
+  }
+
+  await db.executeMultiple(schemaSQL);
+  console.log('✅ Schema do SQLite SinergIA verificado/inicializado com sucesso.');
+  return true;
+};
+
+// Garante que o schema exista uma única vez por processo. Em serverless cada
+// cold start roda isto uma vez; requisições subsequentes reaproveitam a Promise.
+let schemaPromise = null;
+export const ensureSchema = () => {
+  if (!schemaPromise) {
+    schemaPromise = initSchema().catch((err) => {
+      schemaPromise = null; // permite nova tentativa na próxima requisição
+      throw err;
     });
-  });
+  }
+  return schemaPromise;
 };

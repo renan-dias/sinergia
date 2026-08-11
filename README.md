@@ -25,7 +25,7 @@ A **SinergIA** existe para reduzir a **"lacuna de tradução"** entre a equipe p
 - **Frontend**: React 19 (Vite), React Router v7, TailwindCSS, Recharts (gráficos), Lucide React.
 - **Exportações**: `jspdf` & `jspdf-autotable` (PDF), `xlsx` (Excel), `docx` & `file-saver` (Word).
 - **Backend**: Node.js (Express) com suporte a roteamento REST v1 (`/api/v1/...`).
-- **Banco de Dados**: SQLite3 (armazenado em `sinergia.db`, zero-config para execução local).
+- **Banco de Dados**: libSQL/SQLite via `@libsql/client` — arquivo local `sinergia.db` em desenvolvimento (zero-config) e [Turso](https://turso.tech) em produção, com o mesmo dialeto SQL.
 - **Serviço de IA**: `@google/generative-ai` com integração Gemini API (variável de ambiente `GEMINI_API_KEY`).
 
 ---
@@ -43,14 +43,18 @@ npm install
 ```
 
 ### 3. Configuração das Variáveis de Ambiente (`.env`)
-O arquivo `.env` já foi criado com a sua chave da Gemini API configurada:
+Copie o `.env.example` para `.env` e preencha a sua chave da Gemini API:
 ```env
 PORT=3001
-GEMINI_API_KEY=AQ.Ab8RN6KQWAocZn3EPQbCUnC9blcEfg5Ibujaeq_B_2FKp7t10A
+GEMINI_API_KEY=sua_chave_gemini_aqui
 DEFAULT_MODEL=gemini-1.5-flash
+
+# Deixe em branco localmente: o servidor usa o arquivo sinergia.db
+TURSO_DATABASE_URL=
+TURSO_AUTH_TOKEN=
 ```
 
-> **Nota de Segurança**: Para alterar o modelo padrão utilizado pela IA, você pode editar o campo `DEFAULT_MODEL` no `.env` ou selecionar dinamicamente o modelo diretamente na interface do Módulo de IA.
+> **Nota de Segurança**: o `.env` está no `.gitignore` e **nunca** deve ser commitado — chaves de API não podem ir para o repositório nem para o README. Para alterar o modelo padrão utilizado pela IA, edite `DEFAULT_MODEL` no `.env` ou selecione o modelo diretamente na interface do Módulo de IA.
 
 ### 4. Inicialização e Carga de Dados (Seed)
 O banco de dados SQLite será criado e populado automaticamente na primeira execução. Caso deseje forçar o recarregamento do seed com dados fictícios do IFSULDEMINAS (turmas de 1º Des. de Sistemas, 1º Logística, 1º Eletrônica), execute:
@@ -64,6 +68,42 @@ Para iniciar simultaneamente o backend Express (porta 3001) e o frontend Vite (p
 npm run dev
 ```
 Em seguida, abra o navegador em: **`http://localhost:5173`**
+
+---
+
+## ☁️ Deploy na Vercel
+
+O frontend é publicado como site estático e o backend Express roda como **Serverless Function** (`api/index.js`), reaproveitando exatamente o mesmo app de desenvolvimento. As reescritas estão em `vercel.json`.
+
+### 1. Criar o banco no Turso
+O sistema de arquivos da Vercel é efêmero e somente leitura, então o `sinergia.db` local não serve em produção. O Turso hospeda o mesmo SQLite:
+
+```bash
+npm i -g @tursodatabase/cli   # ou: curl -sSfL https://get.tur.so/install.sh | bash
+turso auth signup
+turso db create sinergia
+turso db show sinergia --url        # -> TURSO_DATABASE_URL
+turso db tokens create sinergia     # -> TURSO_AUTH_TOKEN
+```
+
+### 2. Configurar as Environment Variables do projeto na Vercel
+Em **Settings → Environment Variables**, adicione para *Production* e *Preview*:
+
+| Variável | Valor |
+| --- | --- |
+| `TURSO_DATABASE_URL` | `libsql://sinergia-<usuario>.turso.io` |
+| `TURSO_AUTH_TOKEN` | token gerado no passo anterior |
+| `GEMINI_API_KEY` | sua chave da Gemini API |
+| `DEFAULT_MODEL` | `gemini-1.5-flash` |
+
+### 3. Publicar e popular
+Faça o deploy (`git push` na `main`). O schema das tabelas é criado sozinho na primeira requisição. O banco sobe **vazio**: para carregar os dados de demonstração, acesse a tela de setup e use **Carregar Dados de Demonstração**, ou chame a API diretamente:
+
+```bash
+curl -X POST https://<seu-projeto>.vercel.app/api/v1/load-demo
+```
+
+> `npm run seed` e o `load-demo` **apagam todas as tabelas** antes de repovoar. Por isso o seed automático nunca roda em produção — apenas no `npm run dev`, e mesmo assim só quando o banco local ainda está vazio.
 
 ---
 
