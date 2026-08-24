@@ -1,7 +1,7 @@
 import { db, initSchema, runQuery, getQuery, allQuery } from './database.js';
 
 export const seedDatabase = async () => {
-  console.log('🌱 Iniciando povoamento de dados (seed) da SinergIA...');
+  console.log('🌱 Iniciando povoamento de dados mockup da SinergIA...');
   await initSchema();
 
   // Clean existing tables
@@ -25,16 +25,16 @@ export const seedDatabase = async () => {
     await runQuery(`DELETE FROM sqlite_sequence WHERE name='${table}';`).catch(() => {});
   }
 
-  // 1. Escolas
+  // 1. Escolas (Mockup Institucional)
   const escolaResult = await runQuery(
     `INSERT INTO escolas (nome, codigo_inep, cidade, uf) VALUES (?, ?, ?, ?)`,
-    ['IFSULDEMINAS - Campus Poços de Caldas', '31284920', 'Poços de Caldas', 'MG']
+    ['Instituto Tecnológico de Educação Profissional - ITEP', '31284920', 'São Paulo', 'SP']
   );
   const escolaId = escolaResult.id;
 
   // 2. BNCC Competências
   const bnccItems = [
-    { codigo: 'EM13LGG101', area: 'Linguagens e suas Tecnologias', descricao: 'Compreender e usar a linguagem verbal e digital em processos de comunicação técnica e artística.' },
+    { codigo: 'EM13LGG101', area: 'Linguagens e suas Tecnologias', descricao: 'Compreender e usar a linguagem verbal e digital em processos de comunicação técnica e profissional.' },
     { codigo: 'EM13MAT301', area: 'Matemática e suas Tecnologias', descricao: 'Utilizar conceitos estatísticos, algébricos e geométricos para resolução de problemas e algoritmos.' },
     { codigo: 'EM13CNT201', area: 'Ciências da Natureza', descricao: 'Analisar e aplicar circuitos, fenômenos físicos e transformação de energia em protótipos industriais.' },
     { codigo: 'EM13CHS102', area: 'Ciências Humanas e Sociais', descricao: 'Avaliar os impactos socioambientais, éticos e trabalhistas das novas tecnologias na sociedade.' }
@@ -118,10 +118,10 @@ export const seedDatabase = async () => {
 
   // 6. Professores
   const profsData = [
-    { nome: 'Prof. Carlos Eduardo', email: 'carlos.eduardo@ifsuldeminas.edu.br', cargo: 'Docente EBTT', espec: 'Desenvolvimento Web e Algoritmos' },
-    { nome: 'Profa. Ana Paula Santos', email: 'ana.santos@ifsuldeminas.edu.br', cargo: 'Docente EBTT', espec: 'Banco de Dados e Engenharia de Software' },
-    { nome: 'Prof. Marcos Vinícius', email: 'marcos.vinicius@ifsuldeminas.edu.br', cargo: 'Coordenador Pedagógico', espec: 'Gestão de Logística' },
-    { nome: 'Profa. Juliana Lima', email: 'juliana.lima@ifsuldeminas.edu.br', cargo: 'Supervisora Pedagógica', espec: 'Linguagens e Educação ProEJA/EPT' }
+    { nome: 'Prof. Carlos Eduardo', email: 'carlos.eduardo@itep.edu.br', cargo: 'Docente EBTT', espec: 'Desenvolvimento Web e Algoritmos' },
+    { nome: 'Profa. Ana Paula Santos', email: 'ana.santos@itep.edu.br', cargo: 'Docente EBTT', espec: 'Banco de Dados e Engenharia de Software' },
+    { nome: 'Prof. Marcos Vinícius', email: 'marcos.vinicius@itep.edu.br', cargo: 'Coordenador Pedagógico', espec: 'Gestão de Logística' },
+    { nome: 'Profa. Juliana Lima', email: 'juliana.lima@itep.edu.br', cargo: 'Supervisora Pedagógica', espec: 'Linguagens e Educação Profissional' }
   ];
 
   const profIds = {};
@@ -143,7 +143,7 @@ export const seedDatabase = async () => {
   await runQuery(`INSERT INTO professor_disciplina_turma (professor_id, disciplina_id, turma_id) VALUES (?, ?, ?)`, [profIds['Profa. Ana Paula Santos'], dBanco, t1Dev]);
   await runQuery(`INSERT INTO professor_disciplina_turma (professor_id, disciplina_id, turma_id) VALUES (?, ?, ?)`, [profIds['Prof. Carlos Eduardo'], dWeb, t1Dev]);
 
-  // 7. Alunos da turma 1º Des. de Sistemas (12 alunos fictícios)
+  // 7. Alunos da turma 1º Des. de Sistemas (12 alunos mockados)
   const alunosDev = [
     { nome: 'Ana Beatriz Souza', matricula: '20261DS001', status: 'ativo' },
     { nome: 'Bruno Henrique Oliveira', matricula: '20261DS002', status: 'em_risco' },
@@ -260,13 +260,13 @@ export const seedDatabase = async () => {
   await runQuery(
     `INSERT INTO eventos_calendario (turma_id, titulo, tipo, data, descricao) VALUES (?, ?, ?, ?, ?)`,
     [t1Dev, 'Entrega do Projeto de Banco de Dados', 'projeto', '2026-08-21', 'Apresentação do Diagrama ER e scripts SQL de criação de tabelas. Valendo 25 pontos.']
-  ); // Mesma semana! Sobreposição para demonstrar alerta do Eixo 2.
+  ); // Mesma semana! Sobreposição para demonstrar alerta de prevenção de sobrecarga.
   await runQuery(
     `INSERT INTO eventos_calendario (turma_id, titulo, tipo, data, descricao) VALUES (?, ?, ?, ?, ?)`,
-    [t1Dev, 'Semana Tecnológica do IFSULDEMINAS', 'evento_escolar', '2026-08-28', 'Palestras e minicursos de inovação tecnológica e EPT.']
+    [t1Dev, 'Semana Tecnológica Institucional', 'evento_escolar', '2026-08-28', 'Palestras e minicursos de inovação tecnológica e EPT.']
   );
 
-  console.log('✅ Carga de dados (seed) concluída com sucesso!');
+  console.log('✅ Carga de dados mockup concluída com sucesso!');
 };
 
 // If called directly via node server/db/seed.js
